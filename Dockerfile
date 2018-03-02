@@ -11,6 +11,9 @@ FROM openjdk:8u151
 ENV SCALA_VERSION 2.12.4
 ENV MILL_VERSION 0.1.3
 
+# Define working directory
+WORKDIR /root
+
 # Scala expects this file
 RUN touch /usr/lib/jvm/java-8-openjdk-amd64/release
 
@@ -25,7 +28,6 @@ RUN \
 RUN \
   curl -L -o /usr/local/bin/mill https://github.com/lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION && \
   chmod +x /usr/local/bin/mill && \
-  mill --help
-
-# Define working directory
-WORKDIR /root
+  touch build.sc && \
+  mill resolve _ && \
+  rm build.sc
