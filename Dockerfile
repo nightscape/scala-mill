@@ -24,7 +24,7 @@ RUN \
 # Install sbt
 RUN \
   curl -L -o /usr/local/bin/mill https://github.com/lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION && \
-  sudo chmod +x /usr/local/bin/mill && \
+  chmod +x /usr/local/bin/mill && \
   mill --help
 
 # Define working directory
