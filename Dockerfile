@@ -5,11 +5,11 @@
 #
 
 # Pull base image
-FROM openjdk:8u151
+FROM openjdk:8u171
 
 # Env variables
-ENV SCALA_VERSION 2.12.4
-ENV MILL_VERSION 0.1.4
+ENV SCALA_VERSION 2.12.6
+ENV MILL_VERSION 0.2.3
 
 # Define working directory
 WORKDIR /root
@@ -24,7 +24,7 @@ RUN \
   echo >> /root/.bashrc && \
   echo "export PATH=~/scala-$SCALA_VERSION/bin:$PATH" >> /root/.bashrc
 
-# Install sbt
+# Install mill
 RUN \
   curl -L -o /usr/local/bin/mill https://github.com/lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION && \
   chmod +x /usr/local/bin/mill && \
