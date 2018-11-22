@@ -9,7 +9,7 @@ FROM openjdk:8u181
 
 # Env variables
 ENV SCALA_VERSION 2.12.7
-ENV MILL_VERSION 0.3.2
+ENV MILL_VERSION 0.3.5
 
 # Define working directory
 WORKDIR /root
