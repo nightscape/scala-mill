@@ -5,11 +5,11 @@
 #
 
 # Pull base image
-FROM openjdk:8u282
+FROM openjdk:17
 
 # Env variables
-ENV SCALA_VERSION 2.12.12
-ENV MILL_VERSION 0.9.5
+ENV SCALA_VERSION 2.12.15
+ENV MILL_VERSION 0.9.10
 
 # Define working directory
 WORKDIR /root
