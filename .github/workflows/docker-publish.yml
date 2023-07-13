@@ -1,92 +1,116 @@
-name: Docker
-
-# This workflow uses actions that are not certified by GitHub.
-# They are provided by a third-party and are governed by
-# separate terms of service, privacy policy, and support
-# documentation.
+name: Build
 
 on:
   schedule:
-    - cron: '26 12 1 * *'
+    - cron:  '0 0 * * *'
   push:
-    branches: [ "master" ]
-    # Publish semver tags as releases.
-    tags: [ 'v*.*.*' ]
+    branches:
+      - main
   pull_request:
-    branches: [ "master" ]
-
-env:
-  # Use docker.io for Docker Hub if empty
-  REGISTRY: ghcr.io
-  # github.repository as <account>/<repo>
-  IMAGE_NAME: ${{ github.repository }}
+    branches:
+      - main
 
 
 jobs:
   build:
-
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      # This is used to complete the identity challenge
-      # with sigstore/fulcio when running outside of PRs.
-      id-token: write
-
+    strategy:
+      matrix:
+        scalaVersion: ['2.12.18', '2.13.11', '3.3.0']
+        javaTag: [
+          'graalvm-ce-22.3.0-b2-java17',
+          'graalvm-ce-22.3.0-b2-java11',
+          'eclipse-temurin-jammy-19.0.1_10',
+          'eclipse-temurin-jammy-17.0.5_8',
+          'eclipse-temurin-jammy-11.0.17_8',
+          'eclipse-temurin-jammy-8u352-b08',
+          'eclipse-temurin-focal-17.0.5_8',
+          'eclipse-temurin-focal-11.0.17_8',
+        ]
+        include:
+          # https://github.com/graalvm/container/pkgs/container/graalvm-ce
+          - javaTag: 'graalvm-ce-22.3.0-b2-java17'
+            baseImageTag: 'ol9-java17-22.3.0-b2'
+            platforms: 'linux/amd64,linux/arm64'
+          - javaTag: 'graalvm-ce-22.3.0-b2-java11'
+            baseImageTag: 'ol9-java11-22.3.0-b2'
+            platforms: 'linux/amd64'
+          # https://hub.docker.com/_/eclipse-temurin/tags
+          - javaTag: 'eclipse-temurin-jammy-19.0.1_10'
+            baseImageTag: '19.0.1_10-jdk-jammy'
+            platforms: 'linux/amd64,linux/arm64'
+          - javaTag: 'eclipse-temurin-jammy-17.0.5_8'
+            baseImageTag: '17.0.5_8-jdk-jammy'
+            platforms: 'linux/amd64,linux/arm64'
+          - javaTag: 'eclipse-temurin-jammy-11.0.17_8'
+            baseImageTag: '11.0.17_8-jdk-jammy'
+            platforms: 'linux/amd64,linux/arm64'
+          - javaTag: 'eclipse-temurin-jammy-8u352-b08'
+            baseImageTag: '8u352-b08-jdk-jammy'
+            platforms: 'linux/amd64,linux/arm64'
+          - javaTag: 'eclipse-temurin-focal-17.0.5_8'
+            baseImageTag: '17.0.5_8-jdk-focal'
+            platforms: 'linux/amd64,linux/arm64'
+          - javaTag: 'eclipse-temurin-focal-11.0.17_8'
+            baseImageTag: '11.0.17_8-jdk-focal'
+            platforms: 'linux/amd64,linux/arm64'
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
-
-      # Install the cosign tool except on PR
-      # https://github.com/sigstore/cosign-installer
-      - name: Install cosign
-        if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@6e04d228eb30da1757ee4e1dd75a0ec73a653e06
-        with:
-          cosign-release: 'v1.9.0'
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v2.2.0
-      - name: Setup Docker buildx
-        uses: docker/setup-buildx-action@v2.9.0
-
-      # Login against a Docker registry except on PR
-      # https://github.com/docker/login-action
-      - name: Log into registry ${{ env.REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2.2.0
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Extract metadata (tags, labels) for Docker
-      # https://github.com/docker/metadata-action
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@818d4b7b91585d195f67373fd9cb0332e31a7175
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-
-      # Build and push Docker image with Buildx (don't push on PR)
-      # https://github.com/docker/build-push-action
-      - name: Build and push Docker image
-        id: build-and-push
-        uses: docker/build-push-action@v4
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-      # Sign the resulting Docker image digest except on PRs.
-      # This will only write to the public Rekor transparency log when the Docker
-      # repository is public to avoid leaking data.  If you would like to publish
-      # transparency data even for private images, pass --force to cosign below.
-      # https://github.com/sigstore/cosign
-      - name: Sign the published Docker image
-        if: ${{ github.event_name != 'pull_request' }}
-        env:
-          COSIGN_EXPERIMENTAL: "true"
-        # This step uses the identity token to provision an ephemeral certificate
-        # against the sigstore community Fulcio instance.
-        run: cosign sign ${{ steps.meta.outputs.tags }}@${{ steps.build-and-push.outputs.digest }}
+    - uses: actions/checkout@v3
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v2.2.0
+    - name: Set up Docker Buildx
+      id: buildx
+      uses: docker/setup-buildx-action@v2.9.0
+      #      with:
+      #        install: true
+    - name: Available platforms
+      run: echo ${{ steps.buildx.outputs.platforms }}
+    - name: Get latest Mill version
+      id: get_mill_version
+      run: |
+        MILL_VERSION=$(
+          curl --silent -L https://github.com/com-lihaoyi/mill/releases |
+          grep -i -w -o '>[0-9]*\.[0-9]*\.[0-9]*</a>' |
+          grep -i -w -o '[0-9]*\.[0-9]*\.[0-9]*' |
+          sort --version-sort | tail -n 1)
+        [[ -z "$MILL_VERSION" ]] && { echo "Failed to get latest mill version" ; exit 1; }
+        echo "VERSION=$MILL_VERSION" >> $GITHUB_OUTPUT
+    - name: Create docker tag
+      id: create_docker_tag
+      run: |
+        TAG=nightscape/scala-mill:${{ matrix.javaTag }}_${{ steps.get_mill_version.outputs.VERSION }}_${{ matrix.scalaVersion }}
+        echo "TAG=$TAG" >> $GITHUB_OUTPUT
+    - name: Build docker image
+      uses: docker/build-push-action@v4
+      with:
+        no-cache: true
+        tags: ${{ steps.create_docker_tag.outputs.TAG }}
+        build-args: |
+          BASE_IMAGE_TAG=${{ matrix.baseImageTag }}
+          MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
+          SCALA_VERSION=${{ matrix.scalaVersion }}
+        load: true
+    - name: Test docker image as root (default)
+      if: ${{ !startsWith(matrix.scalaVersion, '2.12') }}
+      # scala --version does not work on < 2.13
+      run: |
+        docker run "${{ steps.create_docker_tag.outputs.TAG }}" \
+          scala --version &&
+          mill -v
+    - name: Log in to DockerHub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Rebuild and push ${{ matrix.platforms }} docker images
+      if: github.event_name != 'pull_request'
+      uses: docker/build-push-action@v4
+      with:
+        tags: ${{ steps.create_docker_tag.outputs.TAG }}
+        build-args: |
+          BASE_IMAGE_TAG=${{ matrix.baseImageTag }}
+          MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
+          SCALA_VERSION=${{ matrix.scalaVersion }}
+        platforms: ${{ matrix.platforms }}
+        push: true

@@ -31,3 +31,4 @@ jobs:
           tags: user/app:latest
           secrets: |
             "github_token=${{ secrets.GITHUB_TOKEN }}"
+          push: true
