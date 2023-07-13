@@ -27,7 +27,7 @@ jobs:
           { base: 'eclipse-temurin', version: '17.0.5_8-jdk-focal' },
           { base: 'eclipse-temurin', version: '11.0.17_8-jdk-focal' },
         ]
-        platforms: ['linux/amd64', 'linux/arm64']
+        platforms: ['linux/amd64,linux/arm64']
     steps:
     - uses: actions/checkout@v3
     - name: Set up QEMU
