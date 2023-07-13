@@ -17,43 +17,17 @@ jobs:
     strategy:
       matrix:
         scalaVersion: ['2.12.18', '2.13.11', '3.3.0']
-        javaTag: [
-          'graalvm-ce-22.3.0-b2-java17',
-          'graalvm-ce-22.3.0-b2-java11',
-          'eclipse-temurin-jammy-19.0.1_10',
-          'eclipse-temurin-jammy-17.0.5_8',
-          'eclipse-temurin-jammy-11.0.17_8',
-          'eclipse-temurin-jammy-8u352-b08',
-          'eclipse-temurin-focal-17.0.5_8',
-          'eclipse-temurin-focal-11.0.17_8',
+        baseImage: [
+          { base: 'graalvm-ce', version: 'ol9-java17-22.3.2', registry: 'ghcr.io/graalvm/' },
+          { base: 'graalvm-ce', version: 'ol9-java11-22.3.2', registry: 'ghcr.io/graalvm/' },
+          { base: 'eclipse-temurin', version: '19.0.1_10-jdk-jammy' },
+          { base: 'eclipse-temurin', version: '17.0.5_8-jdk-jammy' },
+          { base: 'eclipse-temurin', version: '17.0.5_8-jdk-jammy' },
+          { base: 'eclipse-temurin', version: '8u352-b08-jdk-jammy' },
+          { base: 'eclipse-temurin', version: '17.0.5_8-jdk-focal' },
+          { base: 'eclipse-temurin', version: '11.0.17_8-jdk-focal' },
         ]
-        include:
-          # https://github.com/graalvm/container/pkgs/container/graalvm-ce
-          - javaTag: 'graalvm-ce-22.3.0-b2-java17'
-            baseImageTag: 'ol9-java17-22.3.0-b2'
-            platforms: 'linux/amd64,linux/arm64'
-          - javaTag: 'graalvm-ce-22.3.0-b2-java11'
-            baseImageTag: 'ol9-java11-22.3.0-b2'
-            platforms: 'linux/amd64'
-          # https://hub.docker.com/_/eclipse-temurin/tags
-          - javaTag: 'eclipse-temurin-jammy-19.0.1_10'
-            baseImageTag: '19.0.1_10-jdk-jammy'
-            platforms: 'linux/amd64,linux/arm64'
-          - javaTag: 'eclipse-temurin-jammy-17.0.5_8'
-            baseImageTag: '17.0.5_8-jdk-jammy'
-            platforms: 'linux/amd64,linux/arm64'
-          - javaTag: 'eclipse-temurin-jammy-11.0.17_8'
-            baseImageTag: '11.0.17_8-jdk-jammy'
-            platforms: 'linux/amd64,linux/arm64'
-          - javaTag: 'eclipse-temurin-jammy-8u352-b08'
-            baseImageTag: '8u352-b08-jdk-jammy'
-            platforms: 'linux/amd64,linux/arm64'
-          - javaTag: 'eclipse-temurin-focal-17.0.5_8'
-            baseImageTag: '17.0.5_8-jdk-focal'
-            platforms: 'linux/amd64,linux/arm64'
-          - javaTag: 'eclipse-temurin-focal-11.0.17_8'
-            baseImageTag: '11.0.17_8-jdk-focal'
-            platforms: 'linux/amd64,linux/arm64'
+        platforms: ['linux/amd64', 'linux/arm64']
     steps:
     - uses: actions/checkout@v3
     - name: Set up QEMU
@@ -78,7 +52,7 @@ jobs:
     - name: Create docker tag
       id: create_docker_tag
       run: |
-        TAG=nightscape/scala-mill:${{ matrix.javaTag }}_${{ steps.get_mill_version.outputs.VERSION }}_${{ matrix.scalaVersion }}
+        TAG=nightscape/scala-mill:${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}_${{ steps.get_mill_version.outputs.VERSION }}_${{ matrix.scalaVersion }}
         echo "TAG=$TAG" >> $GITHUB_OUTPUT
     - name: Build docker image
       uses: docker/build-push-action@v4
@@ -86,7 +60,7 @@ jobs:
         no-cache: true
         tags: ${{ steps.create_docker_tag.outputs.TAG }}
         build-args: |
-          BASE_IMAGE_TAG=${{ matrix.baseImageTag }}
+          BASE_IMAGE=${{ matrix.baseImage.registry }}${{ matrix.baseImage.base }}:${{ matrix.baseImage.version }}
           MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
           SCALA_VERSION=${{ matrix.scalaVersion }}
         load: true
@@ -95,8 +69,7 @@ jobs:
       # scala --version does not work on < 2.13
       run: |
         docker run "${{ steps.create_docker_tag.outputs.TAG }}" \
-          scala --version &&
-          mill -v
+          bash -c 'scala --version && mill --version'
     - name: Log in to DockerHub
       if: github.event_name != 'pull_request'
       uses: docker/login-action@v2
@@ -109,7 +82,7 @@ jobs:
       with:
         tags: ${{ steps.create_docker_tag.outputs.TAG }}
         build-args: |
-          BASE_IMAGE_TAG=${{ matrix.baseImageTag }}
+          BASE_IMAGE=${{ matrix.baseImage.registry }}${{ matrix.baseImage.base }}:${{ matrix.baseImage.version }}
           MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
           SCALA_VERSION=${{ matrix.scalaVersion }}
         platforms: ${{ matrix.platforms }}

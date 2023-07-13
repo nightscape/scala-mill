@@ -5,11 +5,12 @@
 #
 
 # Pull base image
-FROM openjdk:17
+ARG BASE_IMAGE=graalvm/graalvm-ce:latest
+FROM ${BASE_IMAGE}
 
 # Env variables
-ENV SCALA_VERSION 2.13.11
-ENV MILL_VERSION 0.11.1
+ARG SCALA_VERSION=2.13.11
+ARG MILL_VERSION=0.11.1
 
 # Define working directory
 WORKDIR /root
