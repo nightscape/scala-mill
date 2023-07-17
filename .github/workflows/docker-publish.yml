@@ -20,12 +20,12 @@ jobs:
         baseImage: [
           { base: 'graalvm-ce', version: 'ol9-java17-22.3.2', registry: 'ghcr.io/graalvm/' },
           { base: 'graalvm-ce', version: 'ol9-java11-22.3.2', registry: 'ghcr.io/graalvm/' },
-          { base: 'eclipse-temurin', version: '19.0.1_10-jdk-jammy' },
-          { base: 'eclipse-temurin', version: '17.0.5_8-jdk-jammy' },
-          { base: 'eclipse-temurin', version: '17.0.5_8-jdk-jammy' },
-          { base: 'eclipse-temurin', version: '8u352-b08-jdk-jammy' },
-          { base: 'eclipse-temurin', version: '17.0.5_8-jdk-focal' },
-          { base: 'eclipse-temurin', version: '11.0.17_8-jdk-focal' },
+          { base: 'eclipse-temurin', version: '19.0.2_7-jdk-jammy' },
+          { base: 'eclipse-temurin', version: '17.0.7_7-jdk-jammy' },
+          { base: 'eclipse-temurin', version: '11.0.19_7-jdk-jammy' },
+          { base: 'eclipse-temurin', version: '8u372-b07-jdk-jammy' },
+          { base: 'eclipse-temurin', version: '17.0.7_7-jdk-focal' },
+          { base: 'eclipse-temurin', version: '11.0.19_7-jdk-focal' },
         ]
         platforms: ['linux/amd64,linux/arm64']
     steps:
