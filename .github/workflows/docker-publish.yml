@@ -28,6 +28,12 @@ jobs:
           { base: 'eclipse-temurin', version: '11.0.19_7-jdk-focal' },
         ]
         platforms: ['linux/amd64,linux/arm64']
+        exclude:
+          - scalaVersion: '2.13.11'
+            baseImage:
+              base: 'eclipse-temurin'
+              version: '19.0.2_7-jdk-jammy'
+            platforms: 'linux/amd64,linux/arm64'
     steps:
     - uses: actions/checkout@v3
     - name: Set up QEMU
