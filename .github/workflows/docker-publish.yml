@@ -35,7 +35,7 @@ jobs:
               version: '19.0.2_7-jdk-jammy'
             platforms: 'linux/amd64,linux/arm64'
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v2.2.0
     - name: Set up Docker Buildx
