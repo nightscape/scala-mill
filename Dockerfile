@@ -12,6 +12,10 @@ FROM ${BASE_IMAGE}
 ARG SCALA_VERSION=2.13.11
 ARG MILL_VERSION=0.11.1
 
+# Default to UTF-8
+ENV LANG en_US.UTF-8
+ENV LC_ALL en_US.UTF-8
+
 # Define working directory
 WORKDIR /root
 
