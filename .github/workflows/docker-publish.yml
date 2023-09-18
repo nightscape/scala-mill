@@ -55,7 +55,7 @@ jobs:
         TAG=nightscape/scala-mill:${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}_${{ steps.get_mill_version.outputs.VERSION }}_${{ matrix.scalaVersion }}
         echo "TAG=$TAG" >> $GITHUB_OUTPUT
     - name: Build docker image
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@v5
       with:
         no-cache: true
         tags: ${{ steps.create_docker_tag.outputs.TAG }}
@@ -78,7 +78,7 @@ jobs:
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - name: Rebuild and push ${{ matrix.platforms }} docker images
       if: github.event_name != 'pull_request'
-      uses: docker/build-push-action@v4
+      uses: docker/build-push-action@v5
       with:
         tags: ${{ steps.create_docker_tag.outputs.TAG }}
         build-args: |
