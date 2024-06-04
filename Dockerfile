@@ -9,8 +9,8 @@ ARG BASE_IMAGE=graalvm/graalvm-ce:latest
 FROM ${BASE_IMAGE}
 
 # Env variables
-ARG SCALA_VERSION=2.13.12
-ARG MILL_VERSION=0.11.5
+ARG SCALA_VERSION=2.13.13
+ARG MILL_VERSION=0.11.7
 
 # Define working directory
 WORKDIR /root
