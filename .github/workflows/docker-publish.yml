@@ -23,7 +23,6 @@ jobs:
           { base: 'eclipse-temurin', version: '20.0.2_9-jdk-jammy' },
           { base: 'eclipse-temurin', version: '17.0.8.1_1-jdk-jammy' },
           { base: 'eclipse-temurin', version: '11.0.20.1_1-jdk-jammy' },
-          { base: 'eclipse-temurin', version: '8u382-b05-jdk-jammy' },
           { base: 'eclipse-temurin', version: '17.0.8.1_1-jdk-focal' },
           { base: 'eclipse-temurin', version: '11.0.20.1_1-jdk-focal' },
         ]
