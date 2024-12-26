@@ -23,7 +23,7 @@ jobs:
         baseImage: [
           { base: 'graalvm-community', version: '20.0.2-ol9-20230725', registry: 'ghcr.io/graalvm/' },
           { base: 'graalvm-community', version: '20.0.2-ol9-20230725', registry: 'ghcr.io/graalvm/' },
-          { base: 'eclipse-temurin', version: '20.0.2_9-jdk-jammy' },
+          { base: 'eclipse-temurin', version: '21.0.5_11-jdk-jammy' },
           { base: 'eclipse-temurin', version: '17.0.8.1_1-jdk-jammy' },
           { base: 'eclipse-temurin', version: '11.0.20.1_1-jdk-jammy' },
           { base: 'eclipse-temurin', version: '17.0.8.1_1-jdk-focal' },
