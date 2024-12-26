@@ -16,7 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        scalaVersion: ['2.12.18', '2.13.11', '3.3.0']
+        scalaVersion: ['2.13.15', '2.13.15', '3.3.0']
         baseImage: [
           { base: 'graalvm-community', version: '20.0.2-ol9-20230725', registry: 'ghcr.io/graalvm/' },
           { base: 'graalvm-community', version: '20.0.2-ol9-20230725', registry: 'ghcr.io/graalvm/' },
