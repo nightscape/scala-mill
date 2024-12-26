@@ -1,0 +1,44 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:base"],
+  "packageRules": [
+    {
+      "matchPackagePatterns": ["scala"],
+      "groupName": "scala"
+    },
+    {
+      "matchPackagePatterns": ["temurin", "graalvm"],
+      "groupName": "jdk"
+    }
+  ],
+  "regexManagers": [
+    {
+      "fileMatch": ["^.github/workflows/.*\\.yml$"],
+      "matchStrings": [
+        "scalaVersion: \\['(?<currentValue>[^']*)'",
+        "'(?<currentValue>2\\.(?:12|13)\\.[0-9]+|3\\.[0-9]+\\.[0-9]+)'"
+      ],
+      "datasourceTemplate": "github-releases",
+      "depNameTemplate": "scala/scala",
+      "extractVersionTemplate": "^v?(?<version>.*)$"
+    },
+    {
+      "fileMatch": ["^.github/workflows/.*\\.yml$"],
+      "matchStrings": [
+        "base: 'eclipse-temurin', version: '(?<currentValue>[^']*)'",
+        "version: '(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+_[0-9]+-jdk-[^']*)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "eclipse-temurin"
+    },
+    {
+      "fileMatch": ["^.github/workflows/.*\\.yml$"],
+      "matchStrings": [
+        "base: 'graalvm-community', version: '(?<currentValue>[^']*)'",
+        "version: '(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+-ol[0-9]+-[^']*)"
+      ],
+      "datasourceTemplate": "docker",
+      "depNameTemplate": "ghcr.io/graalvm/graalvm-community"
+    }
+  ]
+}
