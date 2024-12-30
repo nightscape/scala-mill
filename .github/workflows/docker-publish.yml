@@ -9,6 +9,8 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
+
 
 
 jobs:
@@ -30,14 +32,18 @@ jobs:
         ]
         platforms: ['linux/amd64,linux/arm64']
     steps:
+    - name: Log in to DockerHub
+      if: github.event_name != 'pull_request'
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
     - uses: actions/checkout@v4
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3.2.0
     - name: Set up Docker Buildx
       id: buildx
       uses: docker/setup-buildx-action@v3.8.0
-      #      with:
-      #        install: true
     - name: Available platforms
       run: echo ${{ steps.buildx.outputs.platforms }}
     - name: Get latest Mill version
@@ -50,41 +56,27 @@ jobs:
           sort --version-sort | tail -n 1)
         [[ -z "$MILL_VERSION" ]] && { echo "Failed to get latest mill version" ; exit 1; }
         echo "VERSION=$MILL_VERSION" >> $GITHUB_OUTPUT
-    - name: Create docker tag
-      id: create_docker_tag
-      run: |
-        TAG=nightscape/scala-mill:${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}_${{ steps.get_mill_version.outputs.VERSION }}_${{ matrix.scalaVersion }}
-        echo "TAG=$TAG" >> $GITHUB_OUTPUT
-    - name: Build docker image
-      uses: docker/build-push-action@v6
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v5
       with:
-        no-cache: true
-        tags: ${{ steps.create_docker_tag.outputs.TAG }}
-        build-args: |
-          BASE_IMAGE=${{ matrix.baseImage.registry }}${{ matrix.baseImage.base }}:${{ matrix.baseImage.version }}
-          MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
-          SCALA_VERSION=${{ matrix.scalaVersion }}
-        load: true
-    - name: Test docker image as root (default)
-      if: ${{ !startsWith(matrix.scalaVersion, '2.12') }}
-      # scala --version does not work on < 2.13
-      run: |
-        docker run "${{ steps.create_docker_tag.outputs.TAG }}" \
-          bash -c 'scala --version && mill --version'
-    - name: Log in to DockerHub
-      if: github.event_name != 'pull_request'
-      uses: docker/login-action@v3
+          images: |
+            nightscape/scala-mill
+          tags: |
+            type=ref,event=branch,pattern={{branch}}
+            type=raw,value=${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}_${{ steps.get_mill_version.outputs.VERSION }}_${{ matrix.scalaVersion }}
+            type=raw,value=latest,enable=${{ matrix.scalaVersion == '3.3.4' && matrix.baseImage.base == 'graalvm-community' }}
+    - name: Build
+      uses: docker/bake-action@v5
       with:
-        username: ${{ secrets.DOCKERHUB_USERNAME }}
-        password: ${{ secrets.DOCKERHUB_TOKEN }}
-    - name: Rebuild and push ${{ matrix.platforms }} docker images
-      if: github.event_name != 'pull_request'
-      uses: docker/build-push-action@v6
-      with:
-        tags: ${{ steps.create_docker_tag.outputs.TAG }}
-        build-args: |
-          BASE_IMAGE=${{ matrix.baseImage.registry }}${{ matrix.baseImage.base }}:${{ matrix.baseImage.version }}
-          MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
-          SCALA_VERSION=${{ matrix.scalaVersion }}
-        platforms: ${{ matrix.platforms }}
-        push: true
+          files: |
+            ./docker-bake.hcl
+            ${{ steps.meta.outputs.bake-file }}
+          targets: image-all
+          set: |
+            image-all.args.MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
+            image-all.args.SCALA_VERSION=${{ matrix.scalaVersion }}
+            image-all.args.BASE_IMAGE=${{ matrix.baseImage.registry }}${{ matrix.baseImage.base }}:${{ matrix.baseImage.version }}
+            *.cache-from=type=gha,scope=provenance
+            *.cache-to=type=gha,scope=provenance,mode=max
+          push: ${{ github.event_name != 'pull_request' }}

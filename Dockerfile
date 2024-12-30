@@ -5,8 +5,8 @@
 #
 
 # Pull base image
-ARG BASE_IMAGE=graalvm/graalvm-ce:latest
-FROM ${BASE_IMAGE}
+ARG BASE_IMAGE=ghcr.io/graalvm/graalvm-ce:latest
+FROM --platform=$BUILDPLATFORM ${BASE_IMAGE} AS base
 
 # Env variables
 ARG SCALA_VERSION=2.13.13
@@ -40,3 +40,7 @@ RUN \
   touch build.sc && \
   mill -i resolve _ && \
   rm build.sc
+
+FROM base AS test
+
+RUN mill --version
