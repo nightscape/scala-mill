@@ -14,7 +14,142 @@ on:
 
 
 jobs:
+  determine-versions:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: Get latest GraalVM versions
+        id: graalvm
+        run: |
+          # Function to fetch all GraalVM tags from ghcr.io
+          fetch_graalvm_tags() {
+            local page=1
+            local all_tags="[]"
+
+            while true; do
+              response=$(curl -s \
+                -H "Accept: application/vnd.github.v3+json" \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                "https://api.github.com/orgs/graalvm/packages/container/graalvm-community/versions?per_page=100&page=${page}")
+
+              # Check if we have results
+              count=$(echo "$response" | jq -r '. | length')
+              if [ "$count" -eq 0 ]; then
+                break
+              fi
+
+              # Append results to all_tags
+              all_tags=$(echo "$all_tags" "$response" | jq -s '.[0] + .[1]')
+
+              ((page++))
+            done
+
+            # Extract and format the latest ol9 version
+            latest_version=$(echo "$all_tags" | jq -r '
+              map(select(
+                .metadata.container.tags[] |
+                test("^[0-9]+\\.[0-9]+\\.[0-9]+-ol9-[0-9]+$")
+              )) |
+              sort_by(.metadata.container.tags[0]) |
+              reverse |
+              .[0].metadata.container.tags[] |
+              select(test("^[0-9]+\\.[0-9]+\\.[0-9]+-ol9-[0-9]+$"))
+            ')
+
+            echo "$latest_version"
+          }
+
+          GRAAL_VERSION=$(fetch_graalvm_tags)
+          echo "version=${GRAAL_VERSION}" >> $GITHUB_OUTPUT
+
+      - name: Get Temurin versions
+        id: temurin
+        run: |
+          # Function to fetch all tags
+          fetch_all_tags() {
+            local page=1
+            local all_tags="[]"
+
+            while true; do
+              response=$(curl -s "https://hub.docker.com/v2/namespaces/library/repositories/eclipse-temurin/tags/?page=${page}&page_size=100&ordering=last_updated")
+
+              # Check if we have results
+              count=$(echo "$response" | jq -r '.results | length')
+              if [ "$count" -eq 0 ]; then
+                break
+              fi
+
+              # Append results to all_tags
+              all_tags=$(echo "$all_tags" "$response" | jq -s '.[0] + .[1].results')
+
+              ((page++))
+            done
+
+            echo "$all_tags"
+          }
+
+          # Get all tags once
+          ALL_TAGS=$(fetch_all_tags)
+
+          # Function to extract latest version for a major version and distribution
+          get_latest_version() {
+            local MAJOR=$1
+            local DIST=$2
+            echo "$ALL_TAGS" | jq -r --arg major "$MAJOR" --arg dist "$DIST" '
+              map(select(
+                .name |
+                test("^" + $major + "\\.[0-9]+\\.[0-9]+_[0-9]+-jdk-" + $dist + "$")
+              )) |
+              .[0].name // empty'
+          }
+
+          # Get latest versions for LTS releases (11, 17, 21) for both jammy and focal
+          echo "v11_jammy=$(get_latest_version 11 'jammy')" >> $GITHUB_OUTPUT
+          echo "v17_jammy=$(get_latest_version 17 'jammy')" >> $GITHUB_OUTPUT
+          echo "v21_jammy=$(get_latest_version 21 'jammy')" >> $GITHUB_OUTPUT
+          echo "v11_focal=$(get_latest_version 11 'focal')" >> $GITHUB_OUTPUT
+          echo "v17_focal=$(get_latest_version 17 'focal')" >> $GITHUB_OUTPUT
+
+      - name: Set matrix
+        id: set-matrix
+        run: |
+          cat << EOF > matrix.json
+          {
+            "baseImage": [
+              {
+                "base": "graalvm-community",
+                "version": "${{ steps.graalvm.outputs.version }}",
+                "registry": "ghcr.io/graalvm/"
+              },
+              {
+                "base": "eclipse-temurin",
+                "version": "${{ steps.temurin.outputs.v21_jammy }}"
+              },
+              {
+                "base": "eclipse-temurin",
+                "version": "${{ steps.temurin.outputs.v17_jammy }}"
+              },
+              {
+                "base": "eclipse-temurin",
+                "version": "${{ steps.temurin.outputs.v11_jammy }}"
+              },
+              {
+                "base": "eclipse-temurin",
+                "version": "${{ steps.temurin.outputs.v17_focal }}"
+              },
+              {
+                "base": "eclipse-temurin",
+                "version": "${{ steps.temurin.outputs.v11_focal }}"
+              }
+            ]
+          }
+          EOF
+
+          echo "matrix=$(cat matrix.json | jq -c .)" >> $GITHUB_OUTPUT
+
   build:
+    needs: determine-versions
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -22,14 +157,7 @@ jobs:
           - '2.12.18'
           - '2.13.15'
           - '3.3.4'
-        baseImage: [
-          { base: 'graalvm-community', version: '23.0.1-ol9-20241015', registry: 'ghcr.io/graalvm/' },
-          { base: 'eclipse-temurin', version: '21.0.5_11-jdk-jammy' },
-          { base: 'eclipse-temurin', version: '17.0.8.1_1-jdk-jammy' },
-          { base: 'eclipse-temurin', version: '11.0.20.1_1-jdk-jammy' },
-          { base: 'eclipse-temurin', version: '17.0.8.1_1-jdk-focal' },
-          { base: 'eclipse-temurin', version: '11.0.20.1_1-jdk-focal' },
-        ]
+        baseImage: ${{ fromJson(needs.determine-versions.outputs.matrix).baseImage }}
         platforms: ['linux/amd64,linux/arm64']
     steps:
     - name: Log in to DockerHub
@@ -56,6 +184,13 @@ jobs:
           sort --version-sort | tail -n 1)
         [[ -z "$MILL_VERSION" ]] && { echo "Failed to get latest mill version" ; exit 1; }
         echo "VERSION=$MILL_VERSION" >> $GITHUB_OUTPUT
+    - name: Determine highest version for base image
+      id: version_check
+      run: |
+        highest_version=$(echo '${{ needs.determine-versions.outputs.matrix }}' | jq -r --arg base "${{ matrix.baseImage.base }}" '
+          [.. | objects | select(.base == $base).version] | sort | last
+        ')
+        echo "highest_version=${highest_version}" >> $GITHUB_OUTPUT
     - name: Docker meta
       id: meta
       uses: docker/metadata-action@v5
@@ -65,6 +200,7 @@ jobs:
           tags: |
             type=ref,event=branch,pattern={{branch}}
             type=raw,value=${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}_${{ steps.get_mill_version.outputs.VERSION }}_${{ matrix.scalaVersion }}
+            type=raw,value=${{ matrix.baseImage.base }},enable=${{ matrix.scalaVersion == '3.3.4' && matrix.baseImage.version == steps.version_check.outputs.highest_version }}
             type=raw,value=latest,enable=${{ matrix.scalaVersion == '3.3.4' && matrix.baseImage.base == 'graalvm-community' }}
     - name: Build
       uses: docker/bake-action@v5
