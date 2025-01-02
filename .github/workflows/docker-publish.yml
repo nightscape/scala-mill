@@ -153,10 +153,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        scalaVersion:
-          - '2.12.18'
-          - '2.13.15'
-          - '3.3.4'
         baseImage: ${{ fromJson(needs.determine-versions.outputs.matrix).baseImage }}
         platforms: ['linux/amd64,linux/arm64']
     steps:
@@ -199,9 +195,10 @@ jobs:
             nightscape/scala-mill
           tags: |
             type=ref,event=branch,pattern={{branch}}
-            type=raw,value=${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}_${{ steps.get_mill_version.outputs.VERSION }}_${{ matrix.scalaVersion }}
-            type=raw,value=${{ matrix.baseImage.base }},enable=${{ matrix.scalaVersion == '3.3.4' && matrix.baseImage.version == steps.version_check.outputs.highest_version }}
-            type=raw,value=latest,enable=${{ matrix.scalaVersion == '3.3.4' && matrix.baseImage.base == 'graalvm-community' }}
+            type=raw,value=${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}_${{ steps.get_mill_version.outputs.VERSION }}
+            type=raw,value=${{ matrix.baseImage.base }}_${{ steps.get_mill_version.outputs.VERSION }},enable=${{ matrix.baseImage.version == steps.version_check.outputs.highest_version }}
+            type=raw,value=${{ matrix.baseImage.base }},enable=${{ matrix.baseImage.version == steps.version_check.outputs.highest_version }}
+            type=raw,value=latest,enable=${{ matrix.baseImage.base == 'graalvm-community' &&  matrix.baseImage.version == steps.version_check.outputs.highest_version }}
     - name: Build
       uses: docker/bake-action@v5
       with:
@@ -211,7 +208,6 @@ jobs:
           targets: image-all
           set: |
             image-all.args.MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
-            image-all.args.SCALA_VERSION=${{ matrix.scalaVersion }}
             image-all.args.BASE_IMAGE=${{ matrix.baseImage.registry }}${{ matrix.baseImage.base }}:${{ matrix.baseImage.version }}
             *.cache-from=type=gha,scope=provenance
             *.cache-to=type=gha,scope=provenance,mode=max
