@@ -200,11 +200,11 @@ jobs:
             type=raw,value=${{ matrix.baseImage.base }},enable=${{ matrix.baseImage.version == steps.version_check.outputs.highest_version }}
             type=raw,value=latest,enable=${{ matrix.baseImage.base == 'graalvm-community' &&  matrix.baseImage.version == steps.version_check.outputs.highest_version }}
     - name: Build
-      uses: docker/bake-action@v5
+      uses: docker/bake-action@v6
       with:
           files: |
             ./docker-bake.hcl
-            ${{ steps.meta.outputs.bake-file }}
+            cwd://${{ steps.meta.outputs.bake-file }}
           targets: image-all
           set: |
             image-all.args.MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
