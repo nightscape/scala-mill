@@ -12,11 +12,11 @@ FROM --platform=$TARGETPLATFORM ${BASE_IMAGE} AS base
 WORKDIR /root
 
 # Env variables
-ARG MILL_VERSION=0.12.5
+ARG MILL_VERSION=0.12.7
 
 # Install mill
 RUN \
-  curl -L -o /usr/local/bin/mill https://github.com/lihaoyi/mill/releases/download/$MILL_VERSION/$MILL_VERSION && \
+  curl -L -o /usr/local/bin/mill https://repo1.maven.org/maven2/com/lihaoyi/mill-dist/$MILL_VERSION/mill && \
   chmod +x /usr/local/bin/mill
 
 # Copy build files
