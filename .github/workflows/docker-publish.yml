@@ -189,7 +189,7 @@ jobs:
         touch "/tmp/digests/${digest#sha256:}"
     - name: Upload digest
       if: github.event_name != 'pull_request'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: digest-${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}-${{ matrix.platform.name == 'linux/amd64' && 'amd64' || 'arm64' }}
         path: /tmp/digests/*
@@ -206,7 +206,7 @@ jobs:
         baseImage: ${{ fromJson(needs.determine-versions.outputs.matrix).baseImage }}
     steps:
     - name: Download digests
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v7
       with:
         path: /tmp/digests
         pattern: digest-${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}-*
