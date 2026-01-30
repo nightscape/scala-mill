@@ -11,8 +11,6 @@ on:
       - main
   workflow_dispatch:
 
-
-
 jobs:
   determine-versions:
     runs-on: ubuntu-latest
@@ -104,12 +102,9 @@ jobs:
               .[0].name // empty'
           }
 
-          # Get latest versions for LTS releases (11, 17, 21) for both jammy and focal
-          echo "v11_jammy=$(get_latest_version 11 'jammy')" >> $GITHUB_OUTPUT
+          # Get latest versions for LTS releases (17, 21) for jammy
           echo "v17_jammy=$(get_latest_version 17 'jammy')" >> $GITHUB_OUTPUT
           echo "v21_jammy=$(get_latest_version 21 'jammy')" >> $GITHUB_OUTPUT
-          echo "v11_focal=$(get_latest_version 11 'focal')" >> $GITHUB_OUTPUT
-          echo "v17_focal=$(get_latest_version 17 'focal')" >> $GITHUB_OUTPUT
 
       - name: Set matrix
         id: set-matrix
@@ -129,18 +124,6 @@ jobs:
               {
                 "base": "eclipse-temurin",
                 "version": "${{ steps.temurin.outputs.v17_jammy }}"
-              },
-              {
-                "base": "eclipse-temurin",
-                "version": "${{ steps.temurin.outputs.v11_jammy }}"
-              },
-              {
-                "base": "eclipse-temurin",
-                "version": "${{ steps.temurin.outputs.v17_focal }}"
-              },
-              {
-                "base": "eclipse-temurin",
-                "version": "${{ steps.temurin.outputs.v11_focal }}"
               }
             ]
           }
@@ -150,11 +133,16 @@ jobs:
 
   build:
     needs: determine-versions
-    runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         baseImage: ${{ fromJson(needs.determine-versions.outputs.matrix).baseImage }}
-        platforms: ['linux/amd64,linux/arm64']
+        platform:
+          - name: linux/amd64
+            runner: ubuntu-latest
+          - name: linux/arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.platform.runner }}
     steps:
     - name: Log in to DockerHub
       if: github.event_name != 'pull_request'
@@ -163,13 +151,73 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
     - uses: actions/checkout@v6
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v3.7.0
     - name: Set up Docker Buildx
-      id: buildx
       uses: docker/setup-buildx-action@v3.12.0
-    - name: Available platforms
-      run: echo ${{ steps.buildx.outputs.platforms }}
+    - name: Get latest Mill version
+      id: get_mill_version
+      run: |
+        MILL_VERSION=$(
+          curl --silent -L https://github.com/com-lihaoyi/mill/releases |
+          grep -i -w -o '>[0-9]*\.[0-9]*\.[0-9]*</a>' |
+          grep -i -w -o '[0-9]*\.[0-9]*\.[0-9]*' |
+          sort --version-sort | tail -n 1)
+        [[ -z "$MILL_VERSION" ]] && { echo "Failed to get latest mill version" ; exit 1; }
+        echo "VERSION=$MILL_VERSION" >> $GITHUB_OUTPUT
+    - name: Docker meta
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: nightscape/scala-mill
+    - name: Build and push by digest
+      id: build
+      uses: docker/build-push-action@v6
+      with:
+        context: .
+        platforms: ${{ matrix.platform.name }}
+        build-args: |
+          MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
+          BASE_IMAGE=${{ matrix.baseImage.registry }}${{ matrix.baseImage.base }}:${{ matrix.baseImage.version }}
+        labels: ${{ steps.meta.outputs.labels }}
+        outputs: ${{ github.event_name == 'pull_request' && 'type=cacheonly' || 'type=image,name=nightscape/scala-mill,push-by-digest=true,name-canonical=true,push=true' }}
+        cache-from: type=gha,scope=build-${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}
+        cache-to: type=gha,scope=build-${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }},mode=max
+    - name: Export digest
+      if: github.event_name != 'pull_request'
+      run: |
+        mkdir -p /tmp/digests
+        digest="${{ steps.build.outputs.digest }}"
+        touch "/tmp/digests/${digest#sha256:}"
+    - name: Upload digest
+      if: github.event_name != 'pull_request'
+      uses: actions/upload-artifact@v4
+      with:
+        name: digest-${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}-${{ matrix.platform.name == 'linux/amd64' && 'amd64' || 'arm64' }}
+        path: /tmp/digests/*
+        if-no-files-found: error
+        retention-days: 1
+
+  merge:
+    if: github.event_name != 'pull_request'
+    needs: [determine-versions, build]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        baseImage: ${{ fromJson(needs.determine-versions.outputs.matrix).baseImage }}
+    steps:
+    - name: Download digests
+      uses: actions/download-artifact@v4
+      with:
+        path: /tmp/digests
+        pattern: digest-${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}-*
+        merge-multiple: true
+    - name: Log in to DockerHub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3.12.0
     - name: Get latest Mill version
       id: get_mill_version
       run: |
@@ -191,24 +239,18 @@ jobs:
       id: meta
       uses: docker/metadata-action@v5
       with:
-          images: |
-            nightscape/scala-mill
-          tags: |
-            type=ref,event=branch,pattern={{branch}}
-            type=raw,value=${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}_${{ steps.get_mill_version.outputs.VERSION }}
-            type=raw,value=${{ matrix.baseImage.base }}_${{ steps.get_mill_version.outputs.VERSION }},enable=${{ matrix.baseImage.version == steps.version_check.outputs.highest_version }}
-            type=raw,value=${{ matrix.baseImage.base }},enable=${{ matrix.baseImage.version == steps.version_check.outputs.highest_version }}
-            type=raw,value=latest,enable=${{ matrix.baseImage.base == 'graalvm-community' &&  matrix.baseImage.version == steps.version_check.outputs.highest_version }}
-    - name: Build
-      uses: docker/bake-action@v6
-      with:
-          files: |
-            ./docker-bake.hcl
-            cwd://${{ steps.meta.outputs.bake-file }}
-          targets: image-all
-          set: |
-            image-all.args.MILL_VERSION=${{ steps.get_mill_version.outputs.VERSION }}
-            image-all.args.BASE_IMAGE=${{ matrix.baseImage.registry }}${{ matrix.baseImage.base }}:${{ matrix.baseImage.version }}
-            *.cache-from=type=gha,scope=provenance
-            *.cache-to=type=gha,scope=provenance,mode=max
-          push: ${{ github.event_name != 'pull_request' }}
+        images: nightscape/scala-mill
+        tags: |
+          type=ref,event=branch,pattern={{branch}}
+          type=raw,value=${{ matrix.baseImage.base }}-${{ matrix.baseImage.version }}_${{ steps.get_mill_version.outputs.VERSION }}
+          type=raw,value=${{ matrix.baseImage.base }}_${{ steps.get_mill_version.outputs.VERSION }},enable=${{ matrix.baseImage.version == steps.version_check.outputs.highest_version }}
+          type=raw,value=${{ matrix.baseImage.base }},enable=${{ matrix.baseImage.version == steps.version_check.outputs.highest_version }}
+          type=raw,value=latest,enable=${{ matrix.baseImage.base == 'graalvm-community' &&  matrix.baseImage.version == steps.version_check.outputs.highest_version }}
+    - name: Create manifest list and push
+      working-directory: /tmp/digests
+      run: |
+        docker buildx imagetools create $(jq -cr '.tags | map("-t " + .) | join(" ")' <<< "$DOCKER_METADATA_OUTPUT_JSON") \
+          $(printf 'nightscape/scala-mill@sha256:%s ' *)
+    - name: Inspect image
+      run: |
+        docker buildx imagetools inspect nightscape/scala-mill:${{ steps.meta.outputs.version }}
