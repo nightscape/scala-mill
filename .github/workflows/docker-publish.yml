@@ -165,7 +165,7 @@ jobs:
         echo "VERSION=$MILL_VERSION" >> $GITHUB_OUTPUT
     - name: Docker meta
       id: meta
-      uses: docker/metadata-action@v5
+      uses: docker/metadata-action@v6
       with:
         images: nightscape/scala-mill
     - name: Build and push by digest
@@ -237,7 +237,7 @@ jobs:
         echo "highest_version=${highest_version}" >> $GITHUB_OUTPUT
     - name: Docker meta
       id: meta
-      uses: docker/metadata-action@v5
+      uses: docker/metadata-action@v6
       with:
         images: nightscape/scala-mill
         tags: |
